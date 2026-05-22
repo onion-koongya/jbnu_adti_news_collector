@@ -35,7 +35,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add 언론보도_기고칼럼_db.xlsx news_images/
-          # 변경사항이 없으면 에러가 나지 않도록 예외 처리
-          git commit -m "Auto-update: Daily News Data" || echo "No changes to commit"
-          git push
+          # 파일이 존재할 때만 에러 없이 추가되도록 || true 추가
+          git add 언론보도_기고칼럼_db.xlsx news_images/ || true
+          git commit -m "Auto-update: Daily News Data" || true
+          git push || true
