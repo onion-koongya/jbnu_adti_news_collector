@@ -135,7 +135,7 @@ def main():
                     "제목": title,
                     "링크": target_link,
                     "작성일": pub_date,
-                    "이미지보기": f'=IMAGE("{img_url}")' if img_url else "이미지 없음",
+                    "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음",
                 }
             )
             opinion_idx += 1
@@ -150,7 +150,7 @@ def main():
                     "제목": title,
                     "링크": target_link,
                     "작성일": pub_date,
-                    "이미지보기": f'=IMAGE("{img_url}")' if img_url else "이미지 없음",
+                    "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음",
                 }
             )
             news_idx += 1
