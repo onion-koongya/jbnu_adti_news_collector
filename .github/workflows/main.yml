@@ -2,9 +2,8 @@ name: Defense News Auto Collector
 
 on:
   schedule:
-    # 매일 밤 자정(KST 기준 00:00)에 실행. (GitHub 서버는 영국 시간 UTC 기준이므로 9시간을 뺀 15시로 설정합니다)
     - cron: "0 15 * * *"
-  workflow_dispatch: # 내가 원할 때 수동으로 버튼을 눌러서 실행할 수 있게 해주는 옵션
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,20 +21,20 @@ jobs:
       - name: 필수 라이브러리 설치
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 pandas openpyxl
+          pip install requests beautifulsoup4 pandas openpyxl gspread
 
       - name: 파이썬 뉴스 수집기 실행
         env:
-          # GitHub Secrets에 숨겨둔 API 키를 불러와서 환경 변수로 주입
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: python news_collector.py
 
       - name: 수집된 엑셀과 이미지를 GitHub에 자동 업로드(Commit)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          # 파일이 존재할 때만 에러 없이 추가되도록 || true 추가
           git add 언론보도_기고칼럼_db.xlsx news_images/ || true
           git commit -m "Auto-update: Daily News Data" || true
+          git pull --rebase origin main
           git push || true
