@@ -113,7 +113,7 @@ def main():
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
 
         # 2. 블랙리스트 필터링 적용
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승"]
+        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐"]
         
         # 제목이나 요약문(description)에 블랙리스트 키워드가 하나라도 있으면 건너뜀
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
