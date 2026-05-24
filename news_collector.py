@@ -3,6 +3,8 @@ import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+import json      # [추가] 구글 인증용
+import gspread   # [추가] 구글 스프레드시트용
 
 # =========================================================================
 # [설정] 발급받으신 네이버 API 정보를 여기에 입력하세요.
@@ -18,7 +20,6 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 def search_naver_news(query):
     """네이버 뉴스 API를 통해 검색 결과를 가져옵니다."""
     enc_text = urllib.parse.quote(query)
-    # 2026년 최신 기사 수집을 위해 display 개수를 넉넉히 설정 (최대 100)
     url = f"https://openapi.naver.com/v1/search/news.json?query={enc_text}&display=100&sort=date"
 
     headers = {
@@ -36,7 +37,6 @@ def search_naver_news(query):
 
 def extract_og_image(url):
     """기사 링크에서 대표 이미지(og:image) URL을 추출합니다."""
-    # 파이썬 봇 차단을 막기 위한 강력한 브라우저 위장 헤더
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
@@ -76,7 +76,7 @@ def download_image(url, filename):
 
 
 def main():
-    # [적용 완료] 교수님 키워드 7명
+    # 교수님 키워드 7명
     keywords = [
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
         "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대"
@@ -87,7 +87,7 @@ def main():
     for kw in keywords:
         all_items.extend(search_naver_news(kw))
 
-    # 중복 기사 제거 (링크 기준)
+    # 중복 기사 제거
     seen_links = set()
     unique_items = []
     for item in all_items:
@@ -108,26 +108,22 @@ def main():
         if " 2026 " not in pub_date:
             continue
 
-        # [에러 수정 완료] description 추출 및 HTML 태그 제거
         title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
 
         # 2. 블랙리스트 필터링 적용
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐"]
-        
-        # 제목이나 요약문(description)에 블랙리스트 키워드가 하나라도 있으면 건너뜀
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
 
-        # 네이버 인포탈 링크(link) 최우선 사용
         target_link = item.get("link", "")
 
-        # 3. 언론보도 vs 기고 분류 규칙
+        # 3. 분류 규칙
         is_opinion = any(
             word in title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"]
         )
 
-        # 4. 다운로드 및 데이터 적재
+        # 4. 이미지 수집 및 데이터 축적
         if is_opinion:
             file_name = f"{opinion_idx:03d}.jpg"
             img_url = extract_og_image(target_link)
@@ -159,29 +155,43 @@ def main():
             )
             news_idx += 1
 
-    # 로컬 엑셀 파일(DB)로 저장 (openpyxl 엔진 명시)
-    # 데이터가 비어있을 경우 발생하는 에러를 막기 위한 분기 처리
+    # =========================================================================
+    # [수정] 구글 스프레드시트 데이터 전송 로직
+    # =========================================================================
+    GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
+
+    if GOOGLE_CREDENTIALS and (db_data["언론보도"] or db_data["기고"]):
+        try:
+            print("\n🚀 구글 스프레드시트 업데이트 시작...")
+            creds = json.loads(GOOGLE_CREDENTIALS)
+            gc = gspread.service_account_from_dict(creds)
+            
+            # 구글 시트 파일명과 정확히 일치해야 합니다.
+            sh = gc.open("방위산업 뉴스 DB")
+            
+            # 1. 언론보도 시트 전송
+            ws_news = sh.worksheet("언론보도")
+            ws_news.clear()
+            df_news = pd.DataFrame(db_data["언론보도"])
+            if not df_news.empty:
+                ws_news.update(range_name="A1", values=[df_news.columns.values.tolist()] + df_news.astype(str).values.tolist())
+                
+            # 2. 기고 시트 전송
+            ws_opinion = sh.worksheet("기고")
+            ws_opinion.clear()
+            df_opinion = pd.DataFrame(db_data["기고"])
+            if not df_opinion.empty:
+                ws_opinion.update(range_name="A1", values=[df_opinion.columns.values.tolist()] + df_opinion.astype(str).values.tolist())
+            
+            print("✔ 구글 스프레드시트 실시간 동기화 완료!")
+        except Exception as e:
+            print(f"❌ 구글 시트 동기화 실패: {e}")
+            
+    # 로컬 백업용 엑셀 저장소 유지
     if db_data["언론보도"] or db_data["기고"]:
         with pd.ExcelWriter("언론보도_기고칼럼_db.xlsx", engine="openpyxl") as writer:
-            if db_data["언론보도"]:
-                pd.DataFrame(db_data["언론보도"]).to_excel(writer, sheet_name="언론보도", index=False)
-            else:
-                pd.DataFrame(columns=["번호", "제목", "링크", "작성일", "이미지저장"]).to_excel(writer, sheet_name="언론보도", index=False)
-                
-            if db_data["기고"]:
-                pd.DataFrame(db_data["기고"]).to_excel(writer, sheet_name="기고", index=False)
-            else:
-                pd.DataFrame(columns=["번호", "제목", "링크", "작성일", "이미지저장"]).to_excel(writer, sheet_name="기고", index=False)
-        
-        print("\n==============================================")
-        print(" 프로세스 완료!")
-        print(f"- 수집된 2026년 언론보도: {news_idx - 1}건")
-        print(f"- 수집된 2026년 기고칼럼: {opinion_idx - 1}건")
-        print(f"- 이미지 저장 폴더: ./{IMAGE_DIR}/")
-        print("- DB 업데이트 결과: ./언론보도_기고칼럼_db.xlsx")
-        print("==============================================")
-    else:
-        print("\n 조건에 맞는 2026년 기사가 없습니다.")
+            pd.DataFrame(db_data["언론보도"]).to_excel(writer, sheet_name="언론보도", index=False)
+            pd.DataFrame(db_data["기고"]).to_excel(writer, sheet_name="기고", index=False)
 
 
 if __name__ == "__main__":
