@@ -167,7 +167,7 @@ def main():
             gc = gspread.service_account_from_dict(creds)
             
             # 구글 시트 파일명과 정확히 일치해야 합니다.
-            sh = gc.open("방위산업 뉴스 DB")
+            sh = gc.open("언론보도_기고칼럼_db")
             
             # 1. 언론보도 시트 전송
             ws_news = sh.worksheet("언론보도")
