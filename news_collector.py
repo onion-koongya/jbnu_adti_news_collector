@@ -3,8 +3,8 @@ import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import json      # [추가] 구글 인증용
-import gspread   # [추가] 구글 스프레드시트용
+import json      # 구글 인증용
+import gspread   # 구글 스프레드시트용
 
 # =========================================================================
 # [설정] 발급받으신 네이버 API 정보를 여기에 입력하세요.
@@ -123,11 +123,11 @@ def main():
             word in title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"]
         )
 
-        # 4. 이미지 수집 및 데이터 축적
+        # 4. 이미지 수집 및 데이터 축적 (구글 시트용 IMAGE 함수 적용)
         if is_opinion:
             file_name = f"{opinion_idx:03d}.jpg"
             img_url = extract_og_image(target_link)
-            success = download_image(img_url, file_name)
+            download_image(img_url, file_name) # 백업용 이미지 다운로드 지속
 
             db_data["기고"].append(
                 {
@@ -135,14 +135,14 @@ def main():
                     "제목": title,
                     "링크": target_link,
                     "작성일": pub_date,
-                    "이미지저장": file_name if success else "실패",
+                    "이미지보기": f'=IMAGE("{img_url}")' if img_url else "이미지 없음",
                 }
             )
             opinion_idx += 1
         else:
             file_name = f"{news_idx:03d}.jpg"
             img_url = extract_og_image(target_link)
-            success = download_image(img_url, file_name)
+            download_image(img_url, file_name) # 백업용 이미지 다운로드 지속
 
             db_data["언론보도"].append(
                 {
@@ -150,13 +150,13 @@ def main():
                     "제목": title,
                     "링크": target_link,
                     "작성일": pub_date,
-                    "이미지저장": file_name if success else "실패",
+                    "이미지보기": f'=IMAGE("{img_url}")' if img_url else "이미지 없음",
                 }
             )
             news_idx += 1
 
     # =========================================================================
-    # [수정] 구글 스프레드시트 데이터 전송 로직
+    # 구글 스프레드시트 데이터 전송 로직 (USER_ENTERED 옵션 추가)
     # =========================================================================
     GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
 
@@ -174,14 +174,22 @@ def main():
             ws_news.clear()
             df_news = pd.DataFrame(db_data["언론보도"])
             if not df_news.empty:
-                ws_news.update(range_name="A1", values=[df_news.columns.values.tolist()] + df_news.astype(str).values.tolist())
+                ws_news.update(
+                    range_name="A1", 
+                    values=[df_news.columns.values.tolist()] + df_news.astype(str).values.tolist(),
+                    value_input_option="USER_ENTERED"  # 함수 파싱 옵션
+                )
                 
             # 2. 기고 시트 전송
             ws_opinion = sh.worksheet("기고")
             ws_opinion.clear()
             df_opinion = pd.DataFrame(db_data["기고"])
             if not df_opinion.empty:
-                ws_opinion.update(range_name="A1", values=[df_opinion.columns.values.tolist()] + df_opinion.astype(str).values.tolist())
+                ws_opinion.update(
+                    range_name="A1", 
+                    values=[df_opinion.columns.values.tolist()] + df_opinion.astype(str).values.tolist(),
+                    value_input_option="USER_ENTERED"  # 함수 파싱 옵션
+                )
             
             print("✔ 구글 스프레드시트 실시간 동기화 완료!")
         except Exception as e:
