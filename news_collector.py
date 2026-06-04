@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import json      # 구글 인증용
 import gspread   # 구글 스프레드시트용
-import difflib  # (이 줄 추가) 문자열 유사도 검사용 도구
+import difflib  # 문자열 유사도 검사용 도구
 
 # =========================================================================
 # [설정] 발급받으신 네이버 API 정보를 여기에 입력하세요.
@@ -77,7 +77,7 @@ def download_image(url, filename):
 
 
 def main():
-    # 교수님 키워드 7명
+    # 검색 키워드 
     keywords = [
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
         "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대", "첨단방위산업학과"
@@ -96,17 +96,23 @@ def main():
             seen_links.add(item["link"])
             unique_items.append(item)
 
+    # =========================================================================
+    # 💡 [수정됨] 중복 선언 버그 수정 및 별표 타겟 키워드 확대
+    # =========================================================================
     db_data = {"언론보도": [], "기고": []}
     news_idx = 1
     opinion_idx = 1
-    prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민","전북대"]
+    
+    # 교수님 이름 + 언론보도 제목에 대놓고 등장할 핵심 단어(학과명) 추가
+    star_keywords = [
+        "강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", 
+        "첨단방위산업학과", "방위산업학과"
+    ]
+    # =========================================================================
     
     print(f" 총 {len(unique_items)}개의 뉴스 발견. 데이터 필터링 및 다운로드 중...")
 
-    db_data = {"언론보도": [], "기고": []}
-    prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
-
-    # [여기 추가] 엑셀에 들어간 기사 제목들을 기억해둘 수첩
+    # 엑셀에 들어간 기사 제목들을 기억해둘 수첩
     saved_titles = [] 
     
     for item in unique_items:
@@ -125,11 +131,10 @@ def main():
             continue
 
         # =================================================================
-        # [여기서부터 추가] 2. 제목 유사도 80% 이상 중복 기사 컷
+        # 3. 제목 유사도 80% 이상 중복 기사 컷
         # =================================================================
         is_duplicate = False
         for prev_title in saved_titles:
-            # 두 제목의 글자 일치율이 80%(0.8) 이상이면 같은 기사로 취급
             similarity = difflib.SequenceMatcher(None, title, prev_title).ratio()
             if similarity >= 0.8:
                 is_duplicate = True
@@ -138,38 +143,30 @@ def main():
         if is_duplicate:
             continue # 비슷한 기사면 가차 없이 버림
             
-        # 통과한 기사 제목은 수첩에 적어둠
         saved_titles.append(title)
         # =================================================================
-        # [여기까지 추가]
-        # =================================================================
 
-        # 기존에 있던 제목과 요약문 추출 코드
-        title = item.get("title", "").replace("<b>", "").replace("</b>", "")
-        description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         # =================================================================
-        # 2. [최종 수정됨] API 맹점을 돌파하는 '현실적인 판단 로직'
-        # 기사는 전부 수집하되, 제목에 이름이 대놓고 박혀있으면 메인 기사로 보고 별표(**)
+        # 4. [최종 수정됨] 확장된 타겟 키워드로 별표(**) 달기
         # =================================================================
-        for name in prof_names:
-            if name in title:
+        for keyword in star_keywords:
+            if keyword in title:
                 title = f"** {title}"
-                break # 별표를 달았으면 다른 교수님 이름은 더 검사할 필요 없이 종료
-        # =================================================================
+                break 
         # =================================================================
 
         target_link = item.get("link", "")
 
-        # 3. 분류 규칙
+        # 분류 규칙
         is_opinion = any(
             word in title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"]
         )
 
-        # 4. 이미지 수집 및 데이터 축적 (구글 시트용 IMAGE 함수 적용)
+        # 이미지 수집 및 데이터 축적
         if is_opinion:
-            file_name = f"{opinion_idx:03d}.jpg"
+            file_name = f"opinion_{opinion_idx:03d}.jpg" # 파일명 덮어쓰기 방지
             img_url = extract_og_image(target_link)
-            download_image(img_url, file_name) # 백업용 이미지 다운로드 지속
+            download_image(img_url, file_name) 
 
             db_data["기고"].append(
                 {
@@ -182,9 +179,9 @@ def main():
             )
             opinion_idx += 1
         else:
-            file_name = f"{news_idx:03d}.jpg"
+            file_name = f"news_{news_idx:03d}.jpg" # 파일명 덮어쓰기 방지
             img_url = extract_og_image(target_link)
-            download_image(img_url, file_name) # 백업용 이미지 다운로드 지속
+            download_image(img_url, file_name) 
 
             db_data["언론보도"].append(
                 {
@@ -196,18 +193,17 @@ def main():
                 }
             )
             news_idx += 1
+
     # =========================================================================
-    # 2단계: [추가된 기능] 별표 우선 정렬 및 번호 예쁘게 매기기
+    # 별표 우선 정렬 및 번호 예쁘게 매기기
     # =========================================================================
     for sheet_name in ["언론보도", "기고"]:
-        # 1. 제목이 '**'로 시작하는 기사들을 리스트 맨 앞으로 끌어올림
         db_data[sheet_name].sort(key=lambda x: not x["제목"].startswith("**"))
-        
-        # 2. 정렬이 다 끝난 깔끔한 상태에서 1번부터 차례대로 번호 부여
         for idx, row in enumerate(db_data[sheet_name], start=1):
             row["번호"] = idx
+
     # =========================================================================
-    # 구글 스프레드시트 데이터 전송 로직 (USER_ENTERED 옵션 추가)
+    # 구글 스프레드시트 데이터 전송 로직
     # =========================================================================
     GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
 
@@ -217,7 +213,6 @@ def main():
             creds = json.loads(GOOGLE_CREDENTIALS)
             gc = gspread.service_account_from_dict(creds)
             
-            # 구글 시트 파일명과 정확히 일치해야 합니다.
             sh = gc.open("언론보도_기고칼럼_db")
             
             # 1. 언론보도 시트 전송
@@ -228,7 +223,7 @@ def main():
                 ws_news.update(
                     range_name="A1", 
                     values=[df_news.columns.values.tolist()] + df_news.astype(str).values.tolist(),
-                    value_input_option="USER_ENTERED"  # 함수 파싱 옵션
+                    value_input_option="USER_ENTERED"  
                 )
                 
             # 2. 기고 시트 전송
@@ -239,7 +234,7 @@ def main():
                 ws_opinion.update(
                     range_name="A1", 
                     values=[df_opinion.columns.values.tolist()] + df_opinion.astype(str).values.tolist(),
-                    value_input_option="USER_ENTERED"  # 함수 파싱 옵션
+                    value_input_option="USER_ENTERED"  
                 )
             
             print("✔ 구글 스프레드시트 실시간 동기화 완료!")
@@ -249,9 +244,10 @@ def main():
     # 로컬 백업용 엑셀 저장소 유지
     if db_data["언론보도"] or db_data["기고"]:
         with pd.ExcelWriter("언론보도_기고칼럼_db.xlsx", engine="openpyxl") as writer:
-            pd.DataFrame(db_data["언론보도"]).to_excel(writer, sheet_name="언론보도", index=False)
-            pd.DataFrame(db_data["기고"]).to_excel(writer, sheet_name="기고", index=False)
-
+            if not pd.DataFrame(db_data["언론보도"]).empty:
+                pd.DataFrame(db_data["언론보도"]).to_excel(writer, sheet_name="언론보도", index=False)
+            if not pd.DataFrame(db_data["기고"]).empty:
+                pd.DataFrame(db_data["기고"]).to_excel(writer, sheet_name="기고", index=False)
 
 if __name__ == "__main__":
     main()
