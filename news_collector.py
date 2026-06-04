@@ -96,38 +96,41 @@ def main():
         pub_date = item.get("pubDate", "")
         if " 2026 " not in pub_date:
             continue
-
+# 기존 텍스트 추출 코드
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
 
-        # 1. 노이즈 블랙리스트 
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준", "안도걸", "총학생회", "등록금", "의대", "입학"]
-        if any(bad_word in full_text for bad_word in bad_keywords):
+        # =================================================================
+        # 💡 [최종 완성] "교수님 + 학과 + 전북대 방산" 통합 필터링
+        # =================================================================
+        compressed_text = full_text.replace(" ", "")
+        
+        # 1. 띄어쓰기 꼼수 차단 초강력 블랙리스트
+        bad_keywords = [
+            "이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", 
+            "재보궐", "김어준", "안도걸", "총학생회", "등록금", "의대", "입학", "병원",
+            "뉴스공장", "여론조사", "딴지", "더불어민주당", "국민의힘", "뉴공"
+        ]
+        if any(bad_word in compressed_text for bad_word in bad_keywords):
             continue
 
-        # 2. 방위산업 무관 기사 컷 (필수 단어 없으면 버림)
+        # 2. 🌟 신원 확인 검문소 (트랙 A 또는 트랙 B 중 하나는 반드시 통과해야 함)
+        
+        # [트랙 A: VIP 프리패스] 교수님 이름이나 학과명이 기사 내용에 직접 언급되었는가?
+        target_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", "첨단방위산업학과", "방위산업학과"]
+        has_vip = any(name in full_text for name in target_names)
+        
+        # [트랙 B: 대학/학과 일반 뉴스] 이름은 없지만, 제목에 '전북대'와 '방산(국방 등)'이 동시에 박혀있는가?
         defense_keywords = ["방산", "방위", "국방", "무기", "전력", "안보", "군수", "K-방산", "국방사업"]
-        if not any(d_word in full_text for d_word in defense_keywords):
-            continue
-
-        # =================================================================
-        # 💡 [핵심] 3. 신원 확인 투트랙(Two-Track) 필터
-        # =================================================================
-        target_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", "첨단방위산업학과"]
-        
-        # 트랙 A: 타겟 인물/학과가 언급된 기사인가?
-        has_target = any(name in full_text for name in target_names)
-        
-        # 트랙 B: 타겟 이름은 없지만, 제목에 '전북대'와 '방산(국방 등)'이 명확히 적힌 메인 보도인가?
-        is_jbnu_defense_title = any(univ in raw_title for univ in ["전북대", "전북대학교"]) and \
-                                any(d_word in raw_title for d_word in defense_keywords)
-                                
-        # A와 B 둘 다 해당 안 되면 "전북방산", "이란 미사일" 등 불순물이므로 가차 없이 버림!
-        if not (has_target or is_jbnu_defense_title):
+        is_jbnu_defense = any(univ in raw_title for univ in ["전북대", "전북대학교"]) and \
+                          any(d_word in raw_title for d_word in defense_keywords)
+                          
+        # A(교수님/학과 언급)에도 속하지 않고, B(전북대 일반 방산 기사)에도 속하지 않으면 버림!
+        if not (has_vip or is_jbnu_defense):
             continue
         # =================================================================
-
+       
         # 4. 별표(**) 승격 심사
         is_main_article = False
         for keyword in star_keywords:
