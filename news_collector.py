@@ -98,7 +98,8 @@ def main():
     db_data = {"언론보도": [], "기고": []}
     news_idx = 1
     opinion_idx = 1
-
+    prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
+    
     print(f" 총 {len(unique_items)}개의 뉴스 발견. 데이터 필터링 및 다운로드 중...")
 
     for item in unique_items:
@@ -119,20 +120,15 @@ def main():
         # 기존에 있던 제목과 요약문 추출 코드
         title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
-
         # =================================================================
-        # [추가된 기능] 핵심 키워드 반복 등장 체크
+        # 2. [최종 수정됨] API 맹점을 돌파하는 '현실적인 판단 로직'
+        # 기사는 전부 수집하되, 제목에 이름이 대놓고 박혀있으면 메인 기사로 보고 별표(**)
         # =================================================================
-        # 타겟으로 하는 핵심 키워드 (예: 교수님 이름)
-        target_keyword = "강은호", "장원준", "송문원", 
-        "이대규", "유준수", "전광호", "홍성민" 
-        
-        # 제목과 요약문에 해당 키워드가 총 몇 번 들어갔는지 합산
-        keyword_count = title.count(target_keyword) + description.count(target_keyword)
-        
-        # 2번 이상 등장했다면 제목 맨 앞에 별표 두 개(**) 추가
-        if keyword_count >= 2: 
-            title = f"** {title}"
+        for name in prof_names:
+            if name in title:
+                title = f"** {title}"
+                break # 별표를 달았으면 다른 교수님 이름은 더 검사할 필요 없이 종료
+        # =================================================================
         # =================================================================
 
         target_link = item.get("link", "")
