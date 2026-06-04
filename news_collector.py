@@ -124,7 +124,8 @@ def main():
         # [추가된 기능] 핵심 키워드 반복 등장 체크
         # =================================================================
         # 타겟으로 하는 핵심 키워드 (예: 교수님 이름)
-        target_keyword = "강은호" 
+        target_keyword = "강은호", "장원준", "송문원", 
+        "이대규", "유준수", "전광호", "홍성민" 
         
         # 제목과 요약문에 해당 키워드가 총 몇 번 들어갔는지 합산
         keyword_count = title.count(target_keyword) + description.count(target_keyword)
