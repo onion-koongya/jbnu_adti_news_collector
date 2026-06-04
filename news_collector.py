@@ -38,7 +38,6 @@ def extract_og_image(url):
     return None
 
 def main():
-    # 검색 키워드
     keywords = [
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
         "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대"
@@ -49,7 +48,6 @@ def main():
     for kw in keywords:
         all_items.extend(search_naver_news(kw))
 
-    # 중복 기사 제거
     seen_links = set()
     unique_items = []
     for item in all_items:
@@ -60,41 +58,35 @@ def main():
     db_data = {"언론보도": [], "기고": []}
     news_idx = 1
     opinion_idx = 1
-    
-    # 🚨 에러가 났던 부분: 여기서 교수님 명단을 확실하게 파이썬에게 알려줍니다.
     prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
 
     for item in unique_items:
         pub_date = item.get("pubDate", "")
-        # 올해(2026년) 기사만 통과
         if " 2026 " not in pub_date:
             continue
 
         title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
 
-        # 1. 블랙리스트 필터링 적용
+      블랙리스트 필터링 적용
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준","더불어민주당"]
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
-
+            
         # =================================================================
-        # 2. [핵심] 수집은 다 하되, 메인 기사에만 별표(**) 달기
+        # 수집은 다 하되, 메인 기사에만 별표(**) 달기
         # =================================================================
         is_main_article = False
         for name in prof_names:
             name_in_title = title.count(name)
             name_in_desc = description.count(name)
             
-            # 제목에 대놓고 있거나, 합쳐서 2번 이상 나오면 메인 기사로 인정
             if name_in_title >= 1 or (name_in_title + name_in_desc) >= 2:
                 is_main_article = True
                 break 
                 
-        # 기사를 버리지 않고, 조건에 맞을 때만 제목을 수정합니다.
         if is_main_article:
             title = f"** {title}" 
-        # =================================================================
 
         target_link = item.get("link", "")
         is_opinion = any(word in title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"])
@@ -119,27 +111,31 @@ def main():
             news_idx += 1
 
     # =========================================================================
-    # 구글 스프레드시트 업데이트
+    # 구글 스프레드시트 업데이트 (안전장치 추가)
     # =========================================================================
     GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
     if GOOGLE_CREDENTIALS and (db_data["언론보도"] or db_data["기고"]):
         try:
             creds = json.loads(GOOGLE_CREDENTIALS)
             gc = gspread.service_account_from_dict(creds)
-            
             sh = gc.open("방위산업 뉴스 DB") 
             
             for sheet_name in ["언론보도", "기고"]:
                 if db_data[sheet_name]:
                     ws = sh.worksheet(sheet_name)
-                    ws.clear()
+                    
+                    # 🚨 gspread의 200 OK 빈 응답 파싱 버그 무시
+                    try:
+                        ws.clear()
+                    except Exception:
+                        pass
+                        
                     df = pd.DataFrame(db_data[sheet_name])
                     df = df[["번호", "제목", "링크", "작성일", "이미지보기"]]
-                    ws.update(
-                        range_name="A1", 
-                        values=[df.columns.values.tolist()] + df.astype(str).values.tolist(), 
-                        value_input_option="USER_ENTERED"
-                    )
+                    
+                    data_to_write = [df.columns.values.tolist()] + df.astype(str).values.tolist()
+                    ws.update(values=data_to_write, range_name="A1", value_input_option="USER_ENTERED")
+                    
             print("✔ 구글 시트 업데이트 완벽 성공!")
         except Exception as e:
             print(f"❌ 구글 시트 동기화 실패: {e}")
