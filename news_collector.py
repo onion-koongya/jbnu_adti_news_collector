@@ -72,9 +72,10 @@ def get_word_overlap_ratio(title1, title2):
 # =========================================================================
 
 def main():
-    keywords = [
+   keywords = [
+        "전북대 방산", "전북대 국방", "전북대 방위산업", 
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
-        "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대", "전북대", "전북대학교 첨단방위산업학과"
+        "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대", "첨단방위산업학과"
     ]
     all_items = []
     print("⚡ 네이버 뉴스 검색 시작...")
@@ -109,27 +110,29 @@ def main():
 
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
+        full_text = raw_title + " " + description
 
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준", "안도걸"]
-        if any(bad_word in raw_title or bad_word in description for bad_word in bad_keywords):
+        # =================================================================
+        # 💡 [여기서부터 교체] 불순물 원천 차단 투트랙 필터
+        # =================================================================
+        # 1. 노이즈 블랙리스트 
+        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준", "안도걸", "총학생회", "등록금", "의대", "입학"]
+        if any(bad_word in full_text for bad_word in bad_keywords):
             continue
 
-        # =================================================================
-        # 💡 [핵심 추가] 3. 화이트리스트 (방산 관련 필수 키워드가 없으면 무조건 버림)
-        # =================================================================
-        defense_keywords = ["방산", "방위", "국방", "무기", "전력", "안보", "군수", "드론", "항공", "K-방산"]
-        # 기사 제목이나 요약문에 위 단어가 단 하나도 포함되어 있지 않다면? -> 곁다리 기사로 간주하고 삭제!
-        if not any(d_word in raw_title or d_word in description for d_word in defense_keywords):
+        # 2. 방위산업 필수 단어 검사
+        defense_keywords = ["방산", "방위", "국방", "무기", "전력", "안보", "군수", "K-방산", "국방사업"]
+        if not any(d_word in full_text for d_word in defense_keywords):
             continue
 
-        # =================================================================
-        # 💡 [핵심 추가] 4. 소속 대학 화이트리스트 (타 대학 철벽 방어)
-        # =================================================================
-        univ_keywords = ["전북대", "전북대학교"]
-        # 기사 제목이나 요약문에 "전북대"나 "전북대학교"가 없으면 남의 학교 기사로 간주하고 삭제!
-        if not any(u_word in raw_title or u_word in description for u_word in univ_keywords):
-            continue
-
+        # 3. 신원 확인 (트랙 A or 트랙 B 중 하나는 반드시 통과해야 함)
+        target_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", "첨단방위산업학과"]
+        
+        has_target = any(name in full_text for name in target_names) # 트랙 A: 타겟 이름이 있는가?
+        
+        is_jbnu_defense_title = any(univ in raw_title for univ in ["전북대", "전북대학교"]) and \
+                                any(d_word in raw_title for d_word in defense_keywords) # 트랙 B: 제목에 전북대+방산이 있는가?
+                                
         # =================================================================
         # 1. 메인 기사(별표 대상) 판별 로직 강화 (제목 + 요약본 쌍끌이)
         # =================================================================
