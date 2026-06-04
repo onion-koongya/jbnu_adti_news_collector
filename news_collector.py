@@ -97,58 +97,60 @@ def main():
         if " 2026 " not in pub_date:
             continue
 # 기존 텍스트 추출 코드
+       # 기존 텍스트 추출 코드
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
-
-        # =================================================================
-        # 💡 [최종 완성] "교수님 + 학과 + 전북대 방산" 통합 필터링
-        # =================================================================
         compressed_text = full_text.replace(" ", "")
-        
-        # 1. 띄어쓰기 꼼수 차단 초강력 블랙리스트
-        bad_keywords = [
-            "이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", 
-            "재보궐", "김어준", "안도걸", "총학생회", "등록금", "의대", "입학", "병원",
-            "뉴스공장", "여론조사", "딴지", "더불어민주당", "국민의힘", "뉴공"
-        ]
-        if any(bad_word in compressed_text for bad_word in bad_keywords):
-            continue
 
-        # 2. 🌟 신원 확인 검문소 (트랙 A 또는 트랙 B 중 하나는 반드시 통과해야 함)
-        
-        # [트랙 A: VIP 프리패스] 교수님 이름이나 학과명이 기사 내용에 직접 언급되었는가?
-        target_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", "첨단방위산업학과", "방위산업학과"]
-        has_vip = any(name in full_text for name in target_names)
-        
-        # [트랙 B: 대학/학과 일반 뉴스] 이름은 없지만, 제목에 '전북대'와 '방산(국방 등)'이 동시에 박혀있는가?
-        defense_keywords = ["방산", "방위", "국방", "무기", "전력", "안보", "군수", "K-방산", "국방사업"]
-        is_jbnu_defense = any(univ in raw_title for univ in ["전북대", "전북대학교"]) and \
-                          any(d_word in raw_title for d_word in defense_keywords)
-                          
-        # A(교수님/학과 언급)에도 속하지 않고, B(전북대 일반 방산 기사)에도 속하지 않으면 버림!
-        if not (has_vip or is_jbnu_defense):
-            continue
         # =================================================================
-       
-        # 4. 별표(**) 승격 심사
+        # 💡 [최종 픽스] VIP 무적 프리패스 & 대학 보도자료 맞춤형 필터
+        # =================================================================
+        prof_keywords = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
+        # 학과를 지칭할 수 있는 다양한 표현들을 넉넉히 넣습니다.
+        dept_keywords = ["첨단방위산업학과", "방위산업학과", "국방사업관리", "방산 전문인력", "방산 인재"]
+        
+        # 정치 노이즈 블랙리스트 (의대, 입학 등은 대학 보도자료 통과를 위해 제외함)
+        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "김어준", "여론조사", "더불어민주당", "국민의힘"]
+
+        is_prof_mentioned = any(p in full_text for p in prof_keywords)
+        is_dept_mentioned = any(d in full_text for d in dept_keywords)
+
+        # 1. VIP 무적 프리패스 (블랙리스트 면제!)
+        if is_prof_mentioned or is_dept_mentioned:
+            pass # 교수님이나 학과 소식이면 블랙리스트 묻지도 따지지도 않고 무조건 100% 수집!
+            
+        # 2. 교수/학과 언급은 없지만, 대학 차원의 '전북대 방산' 일반 기사인 경우
+        else:
+            is_general_defense = any(u in raw_title for u in ["전북대", "전북대학교"]) and \
+                                 any(d in raw_title for d in ["방산", "국방", "방위", "무기", "K-방산", "방사청"])
+            
+            if not is_general_defense:
+                continue # 전북대 방산 관련도 아니면 즉시 폐기!
+
+            # 일반 보도는 정치 노이즈가 섞였을 수 있으므로 여기서만 블랙리스트 검사
+            if any(b in compressed_text for b in bad_keywords):
+                continue
+        # =================================================================
+
+        # =================================================================
+        # 3. 별표(**) 승격 심사 (확실하게 부여)
+        # =================================================================
         is_main_article = False
-        for keyword in star_keywords:
-            count_in_title = raw_title.count(keyword)
-            count_in_desc = description.count(keyword)
-            if count_in_title >= 1 or (count_in_title + count_in_desc) >= 2:
-                is_main_article = True
-                break 
+        
+        # 교수님이 언급되었거나, 제목에 대놓고 학과 관련 단어가 있으면 무조건 별표!
+        if is_prof_mentioned:
+            is_main_article = True
+        elif any(d in raw_title for d in dept_keywords):
+            is_main_article = True
+        # =================================================================
 
-        # =================================================================
-        # 5. 스마트 중복 제거 (단어 70% OR 글자 90%)
-        # =================================================================
+        # 4. 스마트 중복 제거 (단어 70% OR 글자 90%)
         is_duplicate = False
         for prev_title, prev_is_main in saved_titles:
             word_sim = get_word_overlap_ratio(raw_title, prev_title)
             char_sim = difflib.SequenceMatcher(None, raw_title, prev_title).ratio()
             
-            # 조건이 강화되었습니다!
             if word_sim >= 0.7 or char_sim >= 0.9: 
                 if is_main_article == prev_is_main:
                     is_duplicate = True
@@ -159,7 +161,6 @@ def main():
                 
         if is_duplicate:
             continue 
-        # =================================================================
             
         saved_titles.append((raw_title, is_main_article))
         final_title = f"** {raw_title}" if is_main_article else raw_title
