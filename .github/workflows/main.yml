@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:  # <--- 여기서부터 두 줄을 추가합니다.
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: 저장소 파일 가져오기 (Checkout)
