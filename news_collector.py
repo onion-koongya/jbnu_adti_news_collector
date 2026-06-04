@@ -122,24 +122,28 @@ def main():
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
 
-        # =================================================================
-        # [여기서부터 복사해서 붙여넣으세요] 
-        # 2. 곁다리 기사 컷 & 메인 기사 별표 2개 추가
+# =================================================================
+        # 2. [수정됨] 현실적인 곁다리 컷 & 별 2개 추가 로직
         # =================================================================
         prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
-        max_name_count = 0
+        is_main_article = False
         
         for name in prof_names:
-            current_count = title.count(name) + description.count(name)
-            if current_count > max_name_count:
-                max_name_count = current_count
-                
-        if max_name_count < 2:
-            continue # 이름이 1번 이하로 나왔으면 곁다리로 간주하고 버림
+            name_in_title = title.count(name)
+            name_in_desc = description.count(name)
+            total_count = name_in_title + name_in_desc
             
-        title = f"** {title}" # 2번 이상 나와서 살아남은 기사는 별표 추가
-        # =================================================================
-        # [여기까지 복사] 
+            # [조건 완화] 
+            # 1. 제목에 교수님 이름이 메인으로 등장했거나
+            # 2. 제목+요약문 합쳐서 2번 이상 나오면 합격!
+            if name_in_title >= 1 or total_count >= 2:
+                is_main_article = True
+                break 
+                
+        if not is_main_article:
+            continue # 합격하지 못한 곁다리 기사는 버림
+            
+        title = f"** {title}" # 살아남은 기사 제목에 별표 추가
         # =================================================================
 
         target_link = item.get("link", "") # (기존에 있던 코드)
