@@ -112,42 +112,11 @@ def main():
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
 
         # 2. 블랙리스트 필터링 적용
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준"]
-        if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
-            continue
-            
-# =================================================================
-# 1. 정치/노이즈 블랙리스트 컷 (기존에 있던 코드)
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승"]
+        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준","더불어민주당"]
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
 
-# =================================================================
-        # 2. [수정됨] 현실적인 곁다리 컷 & 별 2개 추가 로직
-        # =================================================================
-        prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
-        is_main_article = False
-        
-        for name in prof_names:
-            name_in_title = title.count(name)
-            name_in_desc = description.count(name)
-            total_count = name_in_title + name_in_desc
-            
-            # [조건 완화] 
-            # 1. 제목에 교수님 이름이 메인으로 등장했거나
-            # 2. 제목+요약문 합쳐서 2번 이상 나오면 합격!
-            if name_in_title >= 1 or total_count >= 2:
-                is_main_article = True
-                break 
-                
-        if not is_main_article:
-            continue # 합격하지 못한 곁다리 기사는 버림
-            
-        title = f"** {title}" # 살아남은 기사 제목에 별표 추가
-        # =================================================================
-
-        target_link = item.get("link", "") # (기존에 있던 코드)
-        # =================================================================
+        target_link = item.get("link", "")
 
         # 3. 분류 규칙
         is_opinion = any(
