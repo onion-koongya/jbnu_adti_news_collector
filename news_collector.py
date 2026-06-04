@@ -9,7 +9,7 @@ import difflib
 import re
 
 # =========================================================================
-# API 키 설정 
+# API 키 설정
 # =========================================================================
 CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
@@ -27,7 +27,7 @@ def search_naver_news(query):
     return []
 
 def extract_og_image(url):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
@@ -41,7 +41,7 @@ def extract_og_image(url):
 
 def download_image(url, filename):
     if not url: return False
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
@@ -52,27 +52,17 @@ def download_image(url, filename):
         pass
     return False
 
-# =========================================================================
-# 💡 [핵심 추가] 단어 단위 중복 검사 함수 (강력한 필터링)
-# =========================================================================
 def get_word_overlap_ratio(title1, title2):
     """두 제목의 단어 교집합 비율을 계산합니다."""
-    # 특수문자 다 떼고 순수 단어(명사 등)만 추출
     words1 = set(re.findall(r'\w+', title1))
     words2 = set(re.findall(r'\w+', title2))
-    
     if not words1 or not words2: return 0.0
-    
-    # 두 제목이 공통으로 가진 단어의 개수
     common_words = words1.intersection(words2)
-    
-    # 둘 중 더 짧은 제목을 기준으로 일치율 계산 (꼼수 수식어 무시)
-    overlap_ratio = len(common_words) / min(len(words1), len(words2))
-    return overlap_ratio
-# =========================================================================
+    return len(common_words) / min(len(words1), len(words2))
 
 def main():
-   keywords = [
+    # 검색어는 넓게 던져서 최대한 긁어옵니다 (필터링은 파이썬이 알아서 컷)
+    keywords = [
         "전북대 방산", "전북대 국방", "전북대 방위산업", 
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
         "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대", "첨단방위산업학과"
@@ -95,12 +85,11 @@ def main():
     
     star_keywords = [
         "강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", 
-        "전북대", "첨단방위산업학과"
+        "첨단방위산업학과", "방위산업학과", "전북대"
     ]
     
-    print(f" 총 {len(unique_items)}개의 뉴스 발견. 스마트 필터링 가동...")
+    print(f" 총 {len(unique_items)}개의 뉴스 발견. 필터링 중...")
 
-    # 💡 [핵심 변경] 수첩에 '제목'과 '별표 여부'를 짝지어서 저장합니다.
     saved_titles = [] 
     
     for item in unique_items:
@@ -112,66 +101,65 @@ def main():
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
 
-        # =================================================================
-        # 💡 [여기서부터 교체] 불순물 원천 차단 투트랙 필터
-        # =================================================================
         # 1. 노이즈 블랙리스트 
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준", "안도걸", "총학생회", "등록금", "의대", "입학"]
         if any(bad_word in full_text for bad_word in bad_keywords):
             continue
 
-        # 2. 방위산업 필수 단어 검사
+        # 2. 방위산업 무관 기사 컷 (필수 단어 없으면 버림)
         defense_keywords = ["방산", "방위", "국방", "무기", "전력", "안보", "군수", "K-방산", "국방사업"]
         if not any(d_word in full_text for d_word in defense_keywords):
             continue
 
-        # 3. 신원 확인 (트랙 A or 트랙 B 중 하나는 반드시 통과해야 함)
+        # =================================================================
+        # 💡 [핵심] 3. 신원 확인 투트랙(Two-Track) 필터
+        # =================================================================
         target_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민", "첨단방위산업학과"]
         
-        has_target = any(name in full_text for name in target_names) # 트랙 A: 타겟 이름이 있는가?
+        # 트랙 A: 타겟 인물/학과가 언급된 기사인가?
+        has_target = any(name in full_text for name in target_names)
         
+        # 트랙 B: 타겟 이름은 없지만, 제목에 '전북대'와 '방산(국방 등)'이 명확히 적힌 메인 보도인가?
         is_jbnu_defense_title = any(univ in raw_title for univ in ["전북대", "전북대학교"]) and \
-                                any(d_word in raw_title for d_word in defense_keywords) # 트랙 B: 제목에 전북대+방산이 있는가?
+                                any(d_word in raw_title for d_word in defense_keywords)
                                 
+        # A와 B 둘 다 해당 안 되면 "전북방산", "이란 미사일" 등 불순물이므로 가차 없이 버림!
+        if not (has_target or is_jbnu_defense_title):
+            continue
         # =================================================================
-        # 1. 메인 기사(별표 대상) 판별 로직 강화 (제목 + 요약본 쌍끌이)
-        # =================================================================
+
+        # 4. 별표(**) 승격 심사
         is_main_article = False
         for keyword in star_keywords:
             count_in_title = raw_title.count(keyword)
             count_in_desc = description.count(keyword)
-            
-            # 제목에 1번 이상 대놓고 있거나, 제목과 요약 합쳐서 2번 이상 나오면 메인 기사로 승격!
             if count_in_title >= 1 or (count_in_title + count_in_desc) >= 2:
                 is_main_article = True
                 break 
 
         # =================================================================
-        # 💡 [수정됨] 글자 순서(difflib) 대신 '단어 교집합'으로 중복 검사
+        # 5. 스마트 중복 제거 (단어 70% OR 글자 90%)
         # =================================================================
         is_duplicate = False
         for prev_title, prev_is_main in saved_titles:
-            # 단어 교집합 비율이 55% 이상이면 같은 내용의 보도자료로 간주!
-            similarity = get_word_overlap_ratio(raw_title, prev_title)
+            word_sim = get_word_overlap_ratio(raw_title, prev_title)
+            char_sim = difflib.SequenceMatcher(None, raw_title, prev_title).ratio()
             
-            if similarity >= 0.55: 
+            # 조건이 강화되었습니다!
+            if word_sim >= 0.7 or char_sim >= 0.9: 
                 if is_main_article == prev_is_main:
                     is_duplicate = True
                     break
                 elif not is_main_article and prev_is_main:
                     is_duplicate = True
                     break
-                # 기존은 일반, 새 기사가 별표면 덮어쓰기 위해 버리지 않음
                 
         if is_duplicate:
             continue 
-            
-        # 통과한 기사는 수첩에 (제목, 별표여부) 세트로 기록
-        saved_titles.append((raw_title, is_main_article))
-        
-        # 별표 추가
-        final_title = f"** {raw_title}" if is_main_article else raw_title
         # =================================================================
+            
+        saved_titles.append((raw_title, is_main_article))
+        final_title = f"** {raw_title}" if is_main_article else raw_title
 
         target_link = item.get("link", "")
         is_opinion = any(word in final_title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"])
@@ -180,36 +168,20 @@ def main():
             file_name = f"opinion_{opinion_idx:03d}.jpg"
             img_url = extract_og_image(target_link)
             download_image(img_url, file_name) 
-
-            db_data["기고"].append({
-                "번호": opinion_idx,
-                "제목": final_title,
-                "링크": target_link,
-                "작성일": pub_date,
-                "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음",
-            })
+            db_data["기고"].append({"번호": opinion_idx, "제목": final_title, "링크": target_link, "작성일": pub_date, "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음"})
             opinion_idx += 1
         else:
             file_name = f"news_{news_idx:03d}.jpg"
             img_url = extract_og_image(target_link)
             download_image(img_url, file_name) 
-
-            db_data["언론보도"].append({
-                "번호": news_idx,
-                "제목": final_title,
-                "링크": target_link,
-                "작성일": pub_date,
-                "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음",
-            })
+            db_data["언론보도"].append({"번호": news_idx, "제목": final_title, "링크": target_link, "작성일": pub_date, "이미지보기": f'=HYPERLINK("{img_url}", IMAGE("{img_url}"))' if img_url else "이미지 없음"})
             news_idx += 1
 
-    # 별표 우선 정렬 및 번호 매기기
     for sheet_name in ["언론보도", "기고"]:
         db_data[sheet_name].sort(key=lambda x: not x["제목"].startswith("**"))
         for idx, row in enumerate(db_data[sheet_name], start=1):
             row["번호"] = idx
 
-    # 구글 스프레드시트 데이터 전송
     GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
     if GOOGLE_CREDENTIALS and (db_data["언론보도"] or db_data["기고"]):
         try:
@@ -236,7 +208,6 @@ def main():
         except Exception as e:
             print(f"❌ 구글 시트 동기화 실패: {e}")
             
-    # 로컬 백업 유지
     if db_data["언론보도"] or db_data["기고"]:
         with pd.ExcelWriter("언론보도_기고칼럼_db.xlsx", engine="openpyxl") as writer:
             if not pd.DataFrame(db_data["언론보도"]).empty:
