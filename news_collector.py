@@ -117,27 +117,33 @@ def main():
             continue
             
 # =================================================================
-        # [추가된 기능] 핵심 키워드(이름) 반복 등장 체크
+# 1. 정치/노이즈 블랙리스트 컷 (기존에 있던 코드)
+        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승"]
+        if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
+            continue
+
         # =================================================================
-        # "강은호 전북대" 같은 키워드에서 띄어쓰기 기준 첫 단어("강은호")만 빼냅니다.
-        prof_names = [kw.split()[0] for kw in keywords] 
+        # [여기서부터 복사해서 붙여넣으세요] 
+        # 2. 곁다리 기사 컷 & 메인 기사 별표 2개 추가
+        # =================================================================
+        prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
+        max_name_count = 0
         
-        is_repeated = False
         for name in prof_names:
-            # 제목과 요약문에 해당 교수님 이름이 총 몇 번 들어갔는지 합산
-            name_count = title.count(name) + description.count(name)
-            
-            # 2번 이상 등장했다면 '반복'으로 간주하고 루프 종료
-            if name_count >= 2: 
-                is_repeated = True
-                break
+            current_count = title.count(name) + description.count(name)
+            if current_count > max_name_count:
+                max_name_count = current_count
                 
-        # 반복 언급된 메인 기사라면 제목 맨 앞에 별표 두 개를 달아줍니다.
-        if is_repeated:
-            title = f"** {title}"
+        if max_name_count < 2:
+            continue # 이름이 1번 이하로 나왔으면 곁다리로 간주하고 버림
+            
+        title = f"** {title}" # 2번 이상 나와서 살아남은 기사는 별표 추가
         # =================================================================
-        
-        target_link = item.get("link", "")
+        # [여기까지 복사] 
+        # =================================================================
+
+        target_link = item.get("link", "") # (기존에 있던 코드)
+        # =================================================================
 
         # 3. 분류 규칙
         is_opinion = any(
