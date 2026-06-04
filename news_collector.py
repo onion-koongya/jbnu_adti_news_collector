@@ -116,6 +116,24 @@ def main():
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
 
+        # 기존에 있던 제목과 요약문 추출 코드
+        title = item.get("title", "").replace("<b>", "").replace("</b>", "")
+        description = item.get("description", "").replace("<b>", "").replace("</b>", "")
+
+        # =================================================================
+        # [추가된 기능] 핵심 키워드 반복 등장 체크
+        # =================================================================
+        # 타겟으로 하는 핵심 키워드 (예: 교수님 이름)
+        target_keyword = "강은호" 
+        
+        # 제목과 요약문에 해당 키워드가 총 몇 번 들어갔는지 합산
+        keyword_count = title.count(target_keyword) + description.count(target_keyword)
+        
+        # 2번 이상 등장했다면 제목 맨 앞에 별표 두 개(**) 추가
+        if keyword_count >= 2: 
+            title = f"** {title}"
+        # =================================================================
+
         target_link = item.get("link", "")
 
         # 3. 분류 규칙
