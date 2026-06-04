@@ -6,6 +6,7 @@ import pandas as pd
 import json
 import gspread
 import difflib
+import re
 
 # =========================================================================
 # API 키 설정 
@@ -50,6 +51,25 @@ def download_image(url, filename):
     except:
         pass
     return False
+
+# =========================================================================
+# 💡 [핵심 추가] 단어 단위 중복 검사 함수 (강력한 필터링)
+# =========================================================================
+def get_word_overlap_ratio(title1, title2):
+    """두 제목의 단어 교집합 비율을 계산합니다."""
+    # 특수문자 다 떼고 순수 단어(명사 등)만 추출
+    words1 = set(re.findall(r'\w+', title1))
+    words2 = set(re.findall(r'\w+', title2))
+    
+    if not words1 or not words2: return 0.0
+    
+    # 두 제목이 공통으로 가진 단어의 개수
+    common_words = words1.intersection(words2)
+    
+    # 둘 중 더 짧은 제목을 기준으로 일치율 계산 (꼼수 수식어 무시)
+    overlap_ratio = len(common_words) / min(len(words1), len(words2))
+    return overlap_ratio
+# =========================================================================
 
 def main():
     keywords = [
@@ -124,22 +144,21 @@ def main():
                 break 
 
         # =================================================================
-        # 2. 스마트 중복 제거 (VIP 기사 보호)
+        # 💡 [수정됨] 글자 순서(difflib) 대신 '단어 교집합'으로 중복 검사
         # =================================================================
         is_duplicate = False
         for prev_title, prev_is_main in saved_titles:
-            similarity = difflib.SequenceMatcher(None, raw_title, prev_title).ratio()
+            # 단어 교집합 비율이 55% 이상이면 같은 내용의 보도자료로 간주!
+            similarity = get_word_overlap_ratio(raw_title, prev_title)
             
-            if similarity >= 0.8:
-                # 둘 다 일반 기사이거나 둘 다 별표 기사면 -> 진짜 중복 컷
+            if similarity >= 0.55: 
                 if is_main_article == prev_is_main:
                     is_duplicate = True
                     break
-                # 기존 기사는 '별표'인데, 새 기사가 '일반'이면 -> 퀄리티 낮으므로 컷
                 elif not is_main_article and prev_is_main:
                     is_duplicate = True
                     break
-                # 💡 핵심: 기존 기사는 '일반'인데, 새 기사가 '별표'면? -> 안 버리고 통과!
+                # 기존은 일반, 새 기사가 별표면 덮어쓰기 위해 버리지 않음
                 
         if is_duplicate:
             continue 
