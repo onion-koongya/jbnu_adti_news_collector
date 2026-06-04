@@ -115,29 +115,22 @@ def main():
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준","더불어민주당"]
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
-
-       # =================================================================
-        # [추가할 코드] 맹점을 우회한 곁다리 컷 & 별표(**) 추가 로직
+# =================================================================
+        # 2. [핵심] 수집은 다 하되, 메인 기사에만 별표(**) 달기
         # =================================================================
-        prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
         is_main_article = False
-        
         for name in prof_names:
             name_in_title = title.count(name)
             name_in_desc = description.count(name)
             
-            # 네이버 API의 짧은 요약본 맹점 극복 로직:
-            # - 제목에 대놓고 이름이 박혀 있다면 메인 기사 확률 99%이므로 즉시 합격
-            # - 제목에는 없어도 요약본과 합쳐서 2번 이상 등장했다면 합격
+            # 제목에 대놓고 있거나, 합쳐서 2번 이상 나오면 메인 기사로 인정
             if name_in_title >= 1 or (name_in_title + name_in_desc) >= 2:
                 is_main_article = True
                 break 
                 
-        if not is_main_article:
-            continue # 합격하지 못한 곁다리 기사는 버림
-            
-        title = f"** {title}" # 살아남은 메인 기사 제목에 별표 2개 추가
-        # =================================================================
+        # 기사를 버리지 않고, 조건에 맞을 때만 제목을 수정합니다.
+        if is_main_article:
+            title = f"** {title}"
         target_link = item.get("link", "")
 
         # 3. 분류 규칙
