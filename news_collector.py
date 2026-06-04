@@ -115,7 +115,28 @@ def main():
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준"]
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
-
+            
+# =================================================================
+        # [추가된 기능] 핵심 키워드(이름) 반복 등장 체크
+        # =================================================================
+        # "강은호 전북대" 같은 키워드에서 띄어쓰기 기준 첫 단어("강은호")만 빼냅니다.
+        prof_names = [kw.split()[0] for kw in keywords] 
+        
+        is_repeated = False
+        for name in prof_names:
+            # 제목과 요약문에 해당 교수님 이름이 총 몇 번 들어갔는지 합산
+            name_count = title.count(name) + description.count(name)
+            
+            # 2번 이상 등장했다면 '반복'으로 간주하고 루프 종료
+            if name_count >= 2: 
+                is_repeated = True
+                break
+                
+        # 반복 언급된 메인 기사라면 제목 맨 앞에 별표 두 개를 달아줍니다.
+        if is_repeated:
+            title = f"** {title}"
+        # =================================================================
+        
         target_link = item.get("link", "")
 
         # 3. 분류 규칙
