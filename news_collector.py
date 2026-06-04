@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import json      # 구글 인증용
 import gspread   # 구글 스프레드시트용
+import difflib  # (이 줄 추가) 문자열 유사도 검사용 도구
 
 # =========================================================================
 # [설정] 발급받으신 네이버 API 정보를 여기에 입력하세요.
@@ -102,6 +103,12 @@ def main():
     
     print(f" 총 {len(unique_items)}개의 뉴스 발견. 데이터 필터링 및 다운로드 중...")
 
+    db_data = {"언론보도": [], "기고": []}
+    prof_names = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
+
+    # [여기 추가] 엑셀에 들어간 기사 제목들을 기억해둘 수첩
+    saved_titles = [] 
+    
     for item in unique_items:
         pub_date = item.get("pubDate", "")
 
@@ -116,6 +123,26 @@ def main():
         bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "선대위", "공천", "출사", "재보궐", "김어준", "안도걸"]
         if any(bad_word in title or bad_word in description for bad_word in bad_keywords):
             continue
+
+        # =================================================================
+        # [여기서부터 추가] 2. 제목 유사도 80% 이상 중복 기사 컷
+        # =================================================================
+        is_duplicate = False
+        for prev_title in saved_titles:
+            # 두 제목의 글자 일치율이 80%(0.8) 이상이면 같은 기사로 취급
+            similarity = difflib.SequenceMatcher(None, title, prev_title).ratio()
+            if similarity >= 0.8:
+                is_duplicate = True
+                break
+                
+        if is_duplicate:
+            continue # 비슷한 기사면 가차 없이 버림
+            
+        # 통과한 기사 제목은 수첩에 적어둠
+        saved_titles.append(title)
+        # =================================================================
+        # [여기까지 추가]
+        # =================================================================
 
         # 기존에 있던 제목과 요약문 추출 코드
         title = item.get("title", "").replace("<b>", "").replace("</b>", "")
