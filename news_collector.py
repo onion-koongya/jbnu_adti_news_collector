@@ -62,10 +62,12 @@ def get_word_overlap_ratio(title1, title2):
 
 def main():
     # 검색어는 넓게 던져서 최대한 긁어옵니다 (필터링은 파이썬이 알아서 컷)
-    keywords = [
+  keywords = [
         "전북대 방산", "전북대 국방", "전북대 방위산업", 
+        "전북대 첨단방위산업학과", # 💡 [추가됨] 학과 키워드 단독 투입
         "강은호 전북대", "장원준 전북대", "송문원 전북대", 
-        "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대", "첨단방위산업학과"
+        "이대규 전북대", "유준수 전북대", "전광호 전북대", "홍성민 전북대"
+    ]
     ]
     all_items = []
     print("⚡ 네이버 뉴스 검색 시작...")
@@ -96,43 +98,25 @@ def main():
         pub_date = item.get("pubDate", "")
         if " 2026 " not in pub_date:
             continue
-# 기존 텍스트 추출 코드
-  # 기존 텍스트 추출 코드
+ # 기존 텍스트 추출 코드
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
         compressed_text = full_text.replace(" ", "")
 
         # =================================================================
-        # 💡 [최종 튜닝] 1. 절대 방어막 (블랙리스트 최우선 폐기)
+        # 🚨 1. 치명적 노이즈 (VIP라도 걸리면 즉시 폭파)
         # =================================================================
-        # ① 정치/방송 노이즈 컷
-        political_bad_keywords = [
-            "이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "김어준", 
-            "여론조사", "더불어민주당", "국민의힘", "뉴스공장", "딴지", "안도걸", "뉴공", "의원"
-        ]
-        if any(b in compressed_text or b in full_text for b in political_bad_keywords):
-            continue  
-
-        # ② 대학 일반 소식 노이즈 컷 (의대, 병원 등)
-        univ_bad_keywords = ["의대", "병원", "입학", "등록금", "총학생회"]
-        if any(b in compressed_text for b in univ_bad_keywords):
+        fatal_bad_keywords = ["김어준", "뉴스공장", "딴지", "안도걸", "뉴공"]
+        if any(b in compressed_text or b in full_text for b in fatal_bad_keywords):
             continue
 
-        # 🚨 [새로 추가됨] ③ 타 대학 방어막 (강원대, 폴리텍 등 곁다리 기사 원천 차단)
-        # 방산으로 자주 엮이는 타 대학 이름이 하나라도 있으면 남의 학교 기사로 간주하고 버립니다.
-        other_univ_keywords = ["강원대", "강원대학교", "폴리텍", "창원대", "구미대", "충남대", "건양대", "영남대", "조선대", "우석대", "원광대", "전주대"]
-        if any(u in full_text for u in other_univ_keywords):
-            continue
         # =================================================================
-
-
-        # =================================================================
-        # 💡 2. 보존 트랙 검문 및 🌟 별표(**) 승격 심사 동시 진행
+        # 💡 2. VIP (교수/학과) 절대 면책 특권 및 수집 트랙 분리
         # =================================================================
         prof_keywords = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
-        dept_keywords = ["첨단방위산업학과", "방위산업학과", "국방사업관리", "방산 전문인력", "방산 인재"]
-        defense_keywords = ["방산", "국방", "방위", "무기", "K-방산", "방사청", "국방사업관리사"]
+        dept_keywords = ["첨단방위산업학과", "방위산업학과"]
+        defense_keywords = ["방산", "국방", "방위", "무기", "K-방산", "방사청", "국방사업"]
 
         is_prof_mentioned = any(p in full_text for p in prof_keywords)
         is_dept_mentioned = any(d in full_text for d in dept_keywords)
@@ -140,30 +124,42 @@ def main():
         is_main_article = False  
         pass_this_article = False 
 
-        # [케이스 1] 교수님 이름이나 학과명이 기사에 언급된 경우
+        # 🌟 [트랙 A: VIP 프리패스] 교수님 이름이나 학과명이 언급된 경우!
         if is_prof_mentioned or is_dept_mentioned:
-            pass_this_article = True
+            pass_this_article = True # 일반 블랙리스트 검사(정치/타대학)를 아예 건너뛰고 무조건 수집!
             
-            # 🌟 [별표 조건 A] 요약문이 아니라 '제목'에 교수님 이름이나 학과명이 대놓고 있을 때만 별표!
-            if any(p in raw_title for p in prof_keywords) or any(d in raw_title for d in dept_keywords):
+            # 칼럼/기고문이거나 제목에 VIP가 있으면 무조건 별표!
+            if any(word in raw_title for word in ["칼럼", "기고", "시론", "포럼", "특별기고"]) or \
+               any(p in raw_title for p in prof_keywords) or any(d in raw_title for d in dept_keywords):
                 is_main_article = True
-                
-        # [케이스 2] 교수 이름은 없지만, 대학 차원의 '전북대 방산' 일반 기사인 경우
+
+        # 🛡️ [트랙 B: 일반 학교 기사] 이름은 없지만 '전북대 + 방산' 굵직한 기사인 경우
         else:
             is_jbnu_title = any(u in raw_title for u in ["전북대", "전북대학교"])
             is_defense_content = any(d in full_text for d in defense_keywords)
             
             if is_jbnu_title and is_defense_content:
-                pass_this_article = True
+                # 일반 기사는 혹시 모를 노이즈가 섞일 수 있으므로 여기서 '일반 블랙리스트'를 검사합니다.
+                general_bad_keywords = [
+                    "의대", "병원", "입학", "등록금", "총학생회", 
+                    "이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "여론조사", "더불어민주당", "국민의힘", "의원",
+                    "강원대", "폴리텍", "창원대", "구미대", "충남대", "건양대", "영남대", "조선대", "우석대", "원광대", "전주대"
+                ]
                 
-                # 🌟 [별표 조건 B - 추가됨] 기사 제목에 '전북대'와 '방산 관련 단어'가 같이 있으면 무조건 별표!!
-                # 예: "전북대, 방사청 국방사업관리사 교육기관 선정" -> 별표 획득!
-                if is_jbnu_title and any(d in raw_title for d in defense_keywords):
-                    is_main_article = True
+                # 일반 블랙리스트에 하나라도 걸리면 탈락
+                if not any(b in compressed_text or b in full_text for b in general_bad_keywords):
+                    pass_this_article = True # 깨끗한 방산 기사만 통과!
+                    
+                    # 제목에 국방/방산이 대놓고 있으면 별표
+                    if any(d in raw_title for d in defense_keywords):
+                        is_main_article = True
 
-        # 둘 다 해당 안 되면 불순물이므로 버림
+        # 둘 다 해당 안 되면 얄짤없이 버림
         if not pass_this_article:
             continue
+        # =================================================================
+
+        # 이후 기존의 스마트 중복 제거 로직(단어 70% OR 글자 90%) 이어짐...
         # =================================================================
         # =================================================================
         # =================================================================
