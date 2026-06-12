@@ -97,62 +97,65 @@ def main():
         if " 2026 " not in pub_date:
             continue
 # 기존 텍스트 추출 코드
-     # 기존 텍스트 추출 코드
+  # 기존 텍스트 추출 코드
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
         compressed_text = full_text.replace(" ", "")
 
         # =================================================================
-        # 💡 [최종 수정] 1. 절대 방어막 (블랙리스트 최우선 검문)
+        # 💡 [치명적 버그 수정] 1. 절대 방어막 (블랙리스트 최우선 폐기)
         # =================================================================
-        # '뉴공', '의원' 등 정치/방송 키워드 대폭 추가! (여기에 걸리면 VIP라도 무조건 컷)
+        # 안도걸 의원, 뉴공 등 노이즈는 이름 불문하고 여기서 무조건 폭파시킵니다.
         political_bad_keywords = [
             "이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "김어준", 
             "여론조사", "더불어민주당", "국민의힘", "뉴스공장", "딴지", "안도걸", "뉴공", "의원"
         ]
         if any(b in compressed_text or b in full_text for b in political_bad_keywords):
-            continue  # 안도걸, 뉴공 기사 완벽 차단!
+            continue
 
-        # 대학 일반 뉴스 노이즈 차단 (의대, 병원 등)
+        # 대학 일반 소식 노이즈 차단 (의대, 병원 등)
         univ_bad_keywords = ["의대", "병원", "입학", "등록금", "총학생회"]
         if any(b in compressed_text for b in univ_bad_keywords):
             continue
 
         # =================================================================
-        # 💡 2. 보존 트랙 (A트랙 or B트랙 중 하나만 만족하면 수집!)
+        # 💡 2. 보존 트랙 검문 및 🌟 별표(**) 승격 심사 동시 진행
         # =================================================================
         prof_keywords = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
         dept_keywords = ["첨단방위산업학과", "방위산업학과", "국방사업관리", "방산 전문인력", "방산 인재"]
-        defense_keywords = ["방산", "국방", "방위", "무기", "K-방산", "방사청"]
+        defense_keywords = ["방산", "국방", "방위", "무기", "K-방산", "방사청", "국방사업관리사"]
 
         is_prof_mentioned = any(p in full_text for p in prof_keywords)
         is_dept_mentioned = any(d in full_text for d in dept_keywords)
-
-        # [트랙 A] 교수님이나 학과가 요약문이라도 언급된 경우
-        # 예: "K-방산 혁신 세미나 개최... (요약) 장원준 교수 발제" -> 통과!
-        if is_prof_mentioned or is_dept_mentioned:
-            pass 
-            
-        # [트랙 B] 특정 교수님 이름은 없지만, '전북대 + 방산/국방' 관련 굵직한 기사인 경우
-        # 예: "전북대, 방사청 국방사업관리사 교육기관 선정" -> 통과!
-        else:
-            is_jbnu = any(u in raw_title for u in ["전북대", "전북대학교"])
-            is_defense = any(d in full_text for d in defense_keywords)
-            
-            if not (is_jbnu and is_defense):
-                continue # 전북대 방산 관련도 아니면 즉시 폐기!
-        # =================================================================
-
-        # =================================================================
-        # 3. 🌟 별표(**) 승격 심사
-        # =================================================================
-        is_main_article = False
         
-        # 교수님 이름이나 학과명이 '기사 제목(raw_title)'에 대놓고 박혀있을 때만 별표 부여!
-        # (요약문에만 슬쩍 나오는 기사에는 별표 안 줌)
-        if any(p in raw_title for p in prof_keywords) or any(d in raw_title for d in dept_keywords):
-            is_main_article = True
+        is_main_article = False  # 별표를 달지 말지 결정하는 변수
+        pass_this_article = False # 수집을 할지 말지 결정하는 변수
+
+        # [케이스 1] 교수님 이름이나 학과명이 기사에 언급된 경우 (일단 수집 대상)
+        if is_prof_mentioned or is_dept_mentioned:
+            pass_this_article = True
+            
+            # 🌟 [별표 조건 A] 요약문이 아니라 '제목'에 교수님 이름이나 학과명이 대놓고 있을 때만 별표!
+            if any(p in raw_title for p in prof_keywords) or any(d in raw_title for d in dept_keywords):
+                is_main_article = True
+                
+        # [케이스 2] 이름은 없지만, 제목에 '전북대'와 '방산/국방' 단어가 함께 쓰인 굵직한 학교 성과 기사
+        else:
+            is_jbnu_title = any(u in raw_title for u in ["전북대", "전북대학교"])
+            is_defense_content = any(d in full_text for d in defense_keywords)
+            
+            if is_jbnu_title and is_defense_content:
+                pass_this_article = True
+                
+                # 🌟 [별표 조건 B] 이름은 없어도 "전북대, 국방사업관리사 교육기관 선정" 같은 메인 기사는 무조건 별표!!
+                # 제목에 전북대와 방산 핵심 키워드가 동시에 박혀있다면 메인 성과로 인정합니다.
+                if any(d in raw_title for d in defense_keywords):
+                    is_main_article = True
+
+        # 둘 다 해당 안 되면 불순물이므로 버림
+        if not pass_this_article:
+            continue
         # =================================================================
         # =================================================================
 
