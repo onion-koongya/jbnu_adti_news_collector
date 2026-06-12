@@ -97,30 +97,34 @@ def main():
         if " 2026 " not in pub_date:
             continue
 # 기존 텍스트 추출 코드
-       # 기존 텍스트 추출 코드
+     # 기존 텍스트 추출 코드
         raw_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
         description = item.get("description", "").replace("<b>", "").replace("</b>", "")
         full_text = raw_title + " " + description
         compressed_text = full_text.replace(" ", "")
 
         # =================================================================
-        # 💡 [최종 픽스] VIP 무적 프리패스 & 대학 보도자료 맞춤형 필터
+        # 💡 [최종 수정] 1등급 블랙리스트 최우선 방어 + VIP 프리패스
         # =================================================================
         prof_keywords = ["강은호", "장원준", "송문원", "이대규", "유준수", "전광호", "홍성민"]
-        # 학과를 지칭할 수 있는 다양한 표현들을 넉넉히 넣습니다.
         dept_keywords = ["첨단방위산업학과", "방위산업학과", "국방사업관리", "방산 전문인력", "방산 인재"]
         
-        # 정치 노이즈 블랙리스트 (의대, 입학 등은 대학 보도자료 통과를 위해 제외함)
-        bad_keywords = ["이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "김어준", "여론조사", "더불어민주당", "국민의힘"]
+        # 1. 🚨 절대 방어막 (정치/노이즈): VIP 이름이 있어도 여기 걸리면 100% 폐기!
+        political_bad_keywords = [
+            "이원택", "추미애", "정치", "선거", "이돈승", "공천", "재보궐", "김어준", 
+            "여론조사", "더불어민주당", "국민의힘", "뉴스공장", "딴지"
+        ]
+        if any(b in compressed_text for b in political_bad_keywords):
+            continue  # 정치 노이즈 컷!
 
         is_prof_mentioned = any(p in full_text for p in prof_keywords)
         is_dept_mentioned = any(d in full_text for d in dept_keywords)
 
-        # 1. VIP 무적 프리패스 (블랙리스트 면제!)
+        # 2. VIP 프리패스 (위의 정치 노이즈 검사를 무사히 통과한 진짜 기사만)
         if is_prof_mentioned or is_dept_mentioned:
-            pass # 교수님이나 학과 소식이면 블랙리스트 묻지도 따지지도 않고 무조건 100% 수집!
+            pass 
             
-        # 2. 교수/학과 언급은 없지만, 대학 차원의 '전북대 방산' 일반 기사인 경우
+        # 3. 교수/학과 이름은 없지만, 대학 차원의 '전북대 방산' 일반 기사인 경우
         else:
             is_general_defense = any(u in raw_title for u in ["전북대", "전북대학교"]) and \
                                  any(d in raw_title for d in ["방산", "국방", "방위", "무기", "K-방산", "방사청"])
@@ -128,8 +132,9 @@ def main():
             if not is_general_defense:
                 continue # 전북대 방산 관련도 아니면 즉시 폐기!
 
-            # 일반 보도는 정치 노이즈가 섞였을 수 있으므로 여기서만 블랙리스트 검사
-            if any(b in compressed_text for b in bad_keywords):
+            # 4. 대학 일반 보도 전용 방어막 (의대, 병원 등 타 부서 뉴스 차단)
+            univ_bad_keywords = ["의대", "병원", "입학", "등록금", "총학생회"]
+            if any(b in compressed_text for b in univ_bad_keywords):
                 continue
         # =================================================================
 
